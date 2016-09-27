@@ -1,6 +1,6 @@
 require 'spec_helper_acceptance'
 
-describe 'nodejs class:', unless: UNSUPPORTED_PLATFORMS.include?(fact('osfamily')) do
+describe 'nodejs' do
   it 'runs successfully' do
     pp = <<-EOS
     class { 'nodejs': }
