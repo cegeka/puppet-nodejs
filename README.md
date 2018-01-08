@@ -510,3 +510,4 @@ contributors to follow so that we can have a chance of keeping on top of
 things.
 
 Read the complete module [contribution guide](https://docs.puppetlabs.com/forge/contributing.html)
+
