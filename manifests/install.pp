@@ -1,5 +1,6 @@
 # PRIVATE CLASS: do not call directly
-class nodejs::install {
+class nodejs::install(
+  $npmrc_ssl_disable = false ){
 
   $npmrc_auth = $::nodejs::npmrc_auth
 

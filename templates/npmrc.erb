@@ -4,3 +4,6 @@
 <% if @npmrc_auth -%>
 _auth="<%= @npmrc_auth %>"
 <% end -%>
+<% if @npmrc_ssl_disable -%>
+strict-ssl = false
+<% end -%>
