@@ -23,6 +23,7 @@ class nodejs(
   $repo_proxy_username         = $nodejs::params::repo_proxy_username,
   $repo_url_suffix             = $nodejs::params::repo_url_suffix,
   $use_flags                   = $nodejs::params::use_flags,
+  $npmrc_ssl_disable           = false
 ) inherits nodejs::params {
 
   # Validate repo_url_suffix. Not every versions of NodeJS are available
@@ -120,7 +121,7 @@ class nodejs(
   validate_array($use_flags)
 
   class { '::nodejs::install':
-     npmrc_ssl_disable  => true
+     npmrc_ssl_disable  => $npmrc_ssl_disable
   }
 
   if $manage_package_repo {
