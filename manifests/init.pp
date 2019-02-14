@@ -121,7 +121,7 @@ class nodejs(
   validate_array($use_flags)
 
   class { '::nodejs::install':
-     npmrc_ssl_disable  => $npmrc_ssl_disable
+    npmrc_ssl_disable  => $npmrc_ssl_disable
   }
 
   if $manage_package_repo {
