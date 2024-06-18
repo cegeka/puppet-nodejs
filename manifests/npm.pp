@@ -1,23 +1,17 @@
 # See README.md for usage information.
 define nodejs::npm (
-  $target,
-  $ensure            = 'present',
-  $cmd_exe_path      = $nodejs::cmd_exe_path,
-  $install_options   = [],
-  $npm_path          = $nodejs::npm_path,
-  $package           = $title,
-  $source            = 'registry',
-  $uninstall_options = [],
-  $home_dir          = '/root',
-  $user              = undef,
+  Stdlib::Absolutepath $target,
+  Pattern[/^[^<            >= ]/] $ensure            = 'present',
+  $cmd_exe_path             = $nodejs::cmd_exe_path,
+  Array $install_options    = [],
+  $npm_path                 = $nodejs::npm_path,
+  String $package           = $title,
+  $source                   = 'registry',
+  Array $uninstall_options  = [],
+  $home_dir                 = '/root',
+  $user                     = undef,
+  Boolean $use_package_json = false,
 ) {
-
-  validate_re($ensure, '^[^<>=]', "The ${module_name}::npm defined type does not accept version ranges")
-  validate_array($install_options)
-  validate_string($package)
-  validate_absolute_path($target)
-  validate_array($uninstall_options)
-
   $install_options_string = join($install_options, ' ')
   $uninstall_options_string = join($uninstall_options, ' ')
 
@@ -30,34 +24,56 @@ define nodejs::npm (
     $install_check_package_string = $package
     $package_string = $package
   } else {
-  # ensure is either a tag, version or 'latest'
-  # Note that install_check will always return false when 'latest' or a tag is
-  # provided
-  # npm ls does not keep track of tags after install
+    # ensure is either a tag, version or 'latest'
+    # Note that install_check will always return false when 'latest' or a tag is
+    # provided
+    # npm ls does not keep track of tags after install
     $install_check_package_string = "${package}:${package}@${ensure}"
     $package_string = "${package}@${ensure}"
   }
 
-  $grep_command = $::osfamily ? {
+  $grep_command = $facts['os']['family'] ? {
     'Windows' => "${cmd_exe_path} /c findstr /l",
     default   => 'grep',
   }
 
-  $install_check = $::osfamily ? {
-    'Windows' => "${npm_path} ls --long --parseable | ${grep_command} \"${target}\\node_modules\\${install_check_package_string}\"",
-    default   => "${npm_path} ls --long --parseable | ${grep_command} \"${target}/node_modules/${install_check_package_string}\"",
+  $dirsep = $facts['os']['family'] ? {
+    'Windows' => '\\',
+    default   => '/'
+  }
+
+  $list_command = "${npm_path} ls --long --parseable"
+  $install_check = "${list_command} | ${grep_command} \"${target}${dirsep}node_modules${dirsep}${install_check_package_string}\""
+
+  # set a sensible path on Unix
+  $exec_path = $facts['os']['family'] ? {
+    'Windows' => undef,
+    'Darwin'  => ['/bin', '/usr/bin', '/opt/local/bin', '/usr/local/bin'],
+    default    => ['/bin', '/usr/bin', '/usr/local/bin'],
   }
 
   if $ensure == 'absent' {
     $npm_command = 'rm'
     $options = $uninstall_options_string
 
-    exec { "npm_${npm_command}_${name}":
-      command => "${npm_path} ${npm_command} ${package_string} ${options}",
-      onlyif  => $install_check,
-      user    => $user,
-      cwd     => $target,
-      require => Class['nodejs'],
+    if $use_package_json {
+      exec { "npm_${npm_command}_${name}":
+        command => "${npm_path} ${npm_command} * ${options}",
+        path    => $exec_path,
+        onlyif  => $list_command,
+        user    => $user,
+        cwd     => "${target}${dirsep}node_modules",
+        require => Class['nodejs'],
+      }
+    } else {
+      exec { "npm_${npm_command}_${name}":
+        command => "${npm_path} ${npm_command} ${package_string} ${options}",
+        path    => $exec_path,
+        onlyif  => $install_check,
+        user    => $user,
+        cwd     => $target,
+        require => Class['nodejs'],
+      }
     }
   } else {
     $npm_command = 'install'
@@ -66,13 +82,26 @@ define nodejs::npm (
     Nodejs::Npm::Global_config_entry<| title == 'https-proxy' |> -> Exec["npm_install_${name}"]
     Nodejs::Npm::Global_config_entry<| title == 'proxy' |> -> Exec["npm_install_${name}"]
 
-    exec { "npm_${npm_command}_${name}":
-      command     => "${npm_path} ${npm_command} ${package_string} ${options}",
-      unless      => $install_check,
-      user        => $user,
-      cwd         => $target,
-      environment => "HOME=${home_dir}",
-      require     => Class['nodejs'],
+    if $use_package_json {
+      exec { "npm_${npm_command}_${name}":
+        command     => "${npm_path} ${npm_command} ${options}",
+        path        => $exec_path,
+        unless      => $list_command,
+        user        => $user,
+        cwd         => $target,
+        environment => "HOME=${home_dir}",
+        require     => Class['nodejs'],
+      }
+    } else {
+      exec { "npm_${npm_command}_${name}":
+        command     => "${npm_path} ${npm_command} ${package_string} ${options}",
+        path        => $exec_path,
+        unless      => $install_check,
+        user        => $user,
+        cwd         => $target,
+        environment => "HOME=${home_dir}",
+        require     => Class['nodejs'],
+      }
     }
   }
 }

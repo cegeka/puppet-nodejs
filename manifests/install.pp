@@ -1,15 +1,15 @@
 # PRIVATE CLASS: do not call directly
-class nodejs::install(
-  $npmrc_ssl_disable = false ){
+class nodejs::install {
 
-  $npmrc_auth = $::nodejs::npmrc_auth
+  $npmrc_auth = $nodejs::npmrc_auth
+  $npmrc_config = $nodejs::npmrc_config
 
   if $caller_module_name != $module_name {
     fail("Use of private class ${name} by ${caller_module_name}")
   }
 
   # npm is a Gentoo USE flag
-  if $::operatingsystem == 'Gentoo' {
+  if $facts['os']['name'] == 'Gentoo' and $nodejs::manage_nodejs_package {
     package_use { $nodejs::nodejs_package_name:
       ensure => present,
       target => 'nodejs-flags',
@@ -18,14 +18,18 @@ class nodejs::install(
     }
   }
 
+  Package { provider => $nodejs::package_provider }
+
   # nodejs
-  package { $nodejs::nodejs_package_name:
-    ensure => $nodejs::nodejs_package_ensure,
-    tag    => 'nodesource_repo',
+  if $nodejs::manage_nodejs_package {
+    package { $nodejs::nodejs_package_name:
+      ensure => $nodejs::nodejs_package_ensure,
+      tag    => 'nodesource_repo',
+    }
   }
 
   # nodejs-development
-  if $nodejs::nodejs_dev_package_name {
+  if $nodejs::manage_nodejs_package and $nodejs::nodejs_dev_package_name {
     package { $nodejs::nodejs_dev_package_name:
       ensure => $nodejs::nodejs_dev_package_ensure,
       tag    => 'nodesource_repo',
@@ -40,32 +44,30 @@ class nodejs::install(
     }
   }
 
-  # Replicates the nodejs-legacy package functionality
-  if ($::osfamily == 'Debian' and $nodejs::legacy_debian_symlinks) {
-    file { '/usr/bin/node':
-      ensure => 'link',
-      target => '/usr/bin/nodejs',
-    }
-    file { '/usr/share/man/man1/node.1.gz':
-      ensure => 'link',
-      target => '/usr/share/man/man1/nodejs.1.gz',
-    }
-  }
-
   # npm
   if $nodejs::npm_package_name and $nodejs::npm_package_name != false {
+    # the nodesource nodejs packages provide "npm" which makes Puppet
+    # try to uninstall them again
+    if $nodejs::npm_package_ensure == absent and $nodejs::manage_package_repo == true and $nodejs::repo_class == 'nodejs::repo::nodesource' {
+      $allow_virtual = false
+    } else {
+      $allow_virtual = undef
+    }
     package { $nodejs::npm_package_name:
-      ensure => $nodejs::npm_package_ensure,
-      tag    => 'nodesource_repo',
+      ensure        => $nodejs::npm_package_ensure,
+      allow_virtual => $allow_virtual,
+      tag           => 'nodesource_repo',
     }
   }
 
-  file { 'root_npmrc':
-    ensure  => 'file',
-    path    => '/root/.npmrc',
-    content => template('nodejs/npmrc.erb'),
-    owner   => 'root',
-    group   => '0',
-    mode    => '0600',
+  if $facts['os']['name'] != 'Windows' {
+    file { 'root_npmrc':
+      ensure  => 'file',
+      path    => "${facts['root_home']}/.npmrc",
+      content => template('nodejs/npmrc.erb'),
+      owner   => 'root',
+      group   => '0',
+      mode    => '0600',
+    }
   }
 }
